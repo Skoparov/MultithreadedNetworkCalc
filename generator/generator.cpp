@@ -140,7 +140,7 @@ void update_bracket_data( const action_type& next_action,
 
 void generate_expression(const std::string& dest_file, uint64_t approx_max_size )
 {
-    if( approx_max_size < 3 )
+    if( approx_max_size < 3 ) // one operator + 2 numbers
     {
         throw std::invalid_argument{ "Max size should be greater or equal to 3" };
     }
