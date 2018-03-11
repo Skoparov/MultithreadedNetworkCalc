@@ -81,7 +81,7 @@ std::string rand_int_as_str()
     int result{ 0 };
     do
     {
-        result = get_random_int( 1, std::numeric_limits< int >::max() );
+        result = get_random_int( 1, /*std::numeric_limits< int >::max()*/100 );
     }
     while( result == 0 ); // to avoid division by zero cases
 
@@ -225,7 +225,7 @@ void repeat_expression_for_size( const std::string& dest_file, const std::string
             out << expression;
             if( i != num_to_repeat - 1 )
             {
-                out << (i % 2)? "+" : "-";
+                out << ( (i % 2)? "+" : "-" );
             }
         }
 

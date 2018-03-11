@@ -7,6 +7,8 @@
 
 #include <boost/lexical_cast.hpp>
 
+#define DEBUG
+
 namespace calc
 {
 
