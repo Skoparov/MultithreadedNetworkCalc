@@ -59,7 +59,7 @@ public:
 #ifdef DEBUG
                 m_start = std::chrono::high_resolution_clock::now();
 #endif
-                m_result = std::move( m_calculator.start( std::move( new_data ) ) );
+                m_result = m_calculator.start( std::move( new_data ) );
             }
         }
     }

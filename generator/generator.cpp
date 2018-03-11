@@ -81,7 +81,7 @@ std::string rand_int_as_str()
     int result{ 0 };
     do
     {
-        result = get_random_int( 1, /*std::numeric_limits< int >::max()*/100 );
+        result = get_random_int( 1, std::numeric_limits< int >::max() );
     }
     while( result == 0 ); // to avoid division by zero cases
 
