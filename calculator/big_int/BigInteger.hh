@@ -32,10 +32,22 @@ public:
     BigInteger() : sign(zero), mag() {}
 
     // Copy constructor
-    BigInteger(const BigInteger &x) : sign(x.sign), mag(x.mag) {};
+    BigInteger(const BigInteger &x) : sign(x.sign), mag(x.mag) {}
+    BigInteger( BigInteger&& x) :
+        sign(x.sign),
+        mag( std::move( x.mag ) )
+    {
+        x.sign = zero;
+    }
 
     // Assignment operator
     void operator=(const BigInteger &x);
+    void operator=( BigInteger&&x )
+    {
+        sign = x.sign;
+        mag = std::move( x.mag );
+        x.sign = zero;
+    }
 
     // Constructor that copies from a given array of blocks with a sign.
     BigInteger(const Blk *b, Index blen, Sign s);

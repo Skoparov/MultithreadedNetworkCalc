@@ -3,6 +3,8 @@
 
 #include "NumberlikeArray.hh"
 
+#include <utility>
+
 /* A BigUnsigned object represents a nonnegative integer of size limited only by
  * available memory.  BigUnsigneds support most mathematical operators and can
  * be converted to and from most primitive integer types.
@@ -38,10 +40,17 @@ public:
 
     // Copy constructor
     BigUnsigned(const BigUnsigned &x) : NumberlikeArray<Blk>(x) {}
+    BigUnsigned( BigUnsigned&& x) : NumberlikeArray<Blk>( std::move( x ) ) {}
 
     // Assignment operator
-    void operator=(const BigUnsigned &x) {
+    BigUnsigned& operator=(const BigUnsigned &x) {
         NumberlikeArray<Blk>::operator =(x);
+        return *this;
+    }
+
+    BigUnsigned& operator=( BigUnsigned&& x ) {
+        NumberlikeArray<Blk>::operator =( std::move( x ) );
+        return *this;
     }
 
     // Constructor that copies from a given array of blocks.

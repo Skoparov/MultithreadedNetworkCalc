@@ -23,7 +23,6 @@ int main( int argc, char *argv[] )
                         static_cast< uint16_t >( std::stoul( argv[ 1 ] ) ) :
                         default_port };
 
-
         boost::asio::io_service io_service;
         calc::calc_handle_factory< BigInteger > factory;
         network::tcp_calc_server server{ factory, io_service, port };
