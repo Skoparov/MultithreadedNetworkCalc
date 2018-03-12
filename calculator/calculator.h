@@ -195,7 +195,7 @@ private:
             }
 
             std::string& curr_part = m_expression_parts.front();
-            curr_part.erase( m_read_pos, curr_part.find_first_not_of( ' ', m_read_pos ) - m_read_pos );
+            m_read_pos = curr_part.find_first_not_of( ' ', m_read_pos );
 
             if( m_read_pos >= curr_part.length() )
             {
