@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "generator.h"
+#include <stdexcept>
 
 enum class work_mode{ generate, repeat };
 
@@ -67,7 +68,7 @@ int main( int argc, char *argv[] )
 {
     try
     {
-        settings s{ get_settings( argc, argv ) };
+        settings s = get_settings( argc, argv );
 
         if( s.mode == work_mode::generate )
         {

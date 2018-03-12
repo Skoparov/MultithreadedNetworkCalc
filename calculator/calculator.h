@@ -402,9 +402,12 @@ private:
     std::size_t m_read_pos{ 0 };
     std::queue< std::string > m_expression_parts;
 
-    std::atomic_bool m_running{ false };
-    std::atomic_bool m_error_occured{ false };
-    std::atomic_bool m_calculation_finished{ false };
+    // not sure why, but simple m_running{ false }
+    // causes gcc 4.8.4 to call copy constructon instead of direct initialization
+    // looks like an msvc bug, = {} fixes it
+    std::atomic_bool m_running = { false };
+    std::atomic_bool m_error_occured = { false };
+    std::atomic_bool m_calculation_finished = { false };
 
     mutable std::mutex m_mutex;
     mutable std::condition_variable m_cv;

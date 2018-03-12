@@ -71,21 +71,24 @@ public:
 
     std::string get_result() override
     {
-        std::string result;
+        std::string result{ "No calculation was done" };
+
         try
         {
-            result = boost::lexical_cast< std::string >( m_result.get() );
+            if( m_result.valid() )
+            {
+                result = boost::lexical_cast< std::string >( m_result.get() );
+#ifdef DEBUG
+                auto end = std::chrono::high_resolution_clock::now();
+                uint64_t msec = std::chrono::duration_cast< std::chrono::milliseconds >( end - m_start ).count();
+                std::cout << "Calculation done in " << msec << std::endl;
+#endif
+            }
         }
         catch( const std::exception& e )
         {
             result = e.what();
         }
-
-#ifdef DEBUG
-        auto end = std::chrono::high_resolution_clock::now();
-        uint64_t msec = std::chrono::duration_cast< std::chrono::milliseconds >( end - m_start ).count();
-        std::cout << "Calculation done in " << msec << std::endl;
-#endif
 
         return result;
     }

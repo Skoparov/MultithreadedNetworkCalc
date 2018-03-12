@@ -208,13 +208,18 @@ void repeat_expression_for_size( const std::string& dest_file, const std::string
     }
 
     std::string expression{ ( std::istreambuf_iterator< char >{ in } ),
-                            std::istreambuf_iterator< char >() };
+                             std::istreambuf_iterator< char >() };
 
     in.close();
 
     if( expression.empty() )
     {
         throw std::logic_error{ "Source file is empty" };
+    }
+
+    if( expression.back() == '\n' )
+    {
+        expression.pop_back();
     }
 
     size_t num_to_repeat{ approx_size / ( expression.length() + 1 ) };
