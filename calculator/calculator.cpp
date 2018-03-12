@@ -20,7 +20,7 @@ int get_precedence( const operator_type& type ) noexcept
     switch( type )
     {
     case operator_type::subexpr_start:
-    case operator_type::subexpr_with_num: result = -1; break;
+    case operator_type::subexpr_first_num: result = -1; break;
     case operator_type::end: result = 0; break;
     case operator_type::addition: result = 1; break;
     case operator_type::substraction: result = 1; break;

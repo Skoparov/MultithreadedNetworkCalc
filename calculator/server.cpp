@@ -62,34 +62,37 @@ void abstract_calc_session::on_data( const char* data, uint64_t size, bool end )
         throw std::invalid_argument{ "data is not initialized" };
     }
 
-    if( m_handle->finished() && m_handle->error_occured() )
+    if( !( m_handle->finished() && m_handle->error_occured() ) )
     {
-        // don't wait for transfer finish, just end it here
-        write_result();
-        return;
-    }
+        m_handle->on_data( data, size, end );
 
-    m_handle->on_data( data, size, end );
-
-    if( end )
-    {
-        if( m_handle->finished() )
+        if( end )
         {
-            // send result right away
-            write_result();
+            if( m_handle->finished() )
+            {
+                // send result right away
+                write_result();
+            }
+            else
+            {
+                // wait for result asynchronously and send it
+                m_result_waiter = std::async( std::launch::async,
+                                              &abstract_calc_session::write_result, this );
+            }
         }
         else
         {
-            // wait for result asynchronously and send it
-            m_result_waiter = std::async( std::launch::async,
-                                          &abstract_calc_session::write_result, this );
+            read_next();
         }
     }
     else
     {
-        read_next();
+        // don't wait for transfer to finish, just end it here
+        write_result();
     }
 }
+
+
 
 void abstract_calc_session::write_result()
 {
@@ -145,7 +148,6 @@ void tcp_calc_session::on_socket_data(const bs::error_code& err, uint64_t bytes_
         std::cerr << err.message() << std::endl;
     }
 }
-
 
 }// detail
 

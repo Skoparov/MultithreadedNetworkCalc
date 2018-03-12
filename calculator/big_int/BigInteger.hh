@@ -10,6 +10,8 @@
  * A BigInteger is just an aggregate of a BigUnsigned and a sign.  (It is no
  * longer derived from BigUnsigned because that led to harmful implicit
  * conversions.) */
+#include<iostream>
+
 class BigInteger {
 
 public:
@@ -32,22 +34,12 @@ public:
     BigInteger() : sign(zero), mag() {}
 
     // Copy constructor
-    BigInteger(const BigInteger &x) : sign(x.sign), mag(x.mag) {}
-    BigInteger( BigInteger&& x) :
-        sign(x.sign),
-        mag( std::move( x.mag ) )
-    {
-        x.sign = zero;
-    }
+    BigInteger(const BigInteger &x);
+    BigInteger( BigInteger&& x);
 
     // Assignment operator
-    void operator=(const BigInteger &x);
-    void operator=( BigInteger&&x )
-    {
-        sign = x.sign;
-        mag = std::move( x.mag );
-        x.sign = zero;
-    }
+    BigInteger& operator=(const BigInteger &x);
+    BigInteger& operator=( BigInteger&& x ) noexcept;
 
     // Constructor that copies from a given array of blocks with a sign.
     BigInteger(const Blk *b, Index blen, Sign s);
@@ -211,7 +203,7 @@ inline void BigInteger::operator /=(const BigInteger &x) {
     BigInteger q;
     divideWithRemainder(x, q);
     // *this contains the remainder, but we overwrite it with the quotient.
-    *this = q;
+    *this = std::move( q );
 }
 inline void BigInteger::operator %=(const BigInteger &x) {
     if (x.isZero()) throw "BigInteger::operator %=: division by zero";

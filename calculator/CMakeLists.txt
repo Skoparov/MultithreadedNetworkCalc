@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 2.6)
 set( PROJECT calc_server )
 project( ${PROJECT} )
 
+add_definitions( -DSHOW_TIME )
+
 set( CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-std=c++11 -pthread" )
 find_package( Boost 1.55.0 REQUIRED COMPONENTS system )
 

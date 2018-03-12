@@ -7,8 +7,6 @@
 
 #include <boost/lexical_cast.hpp>
 
-#define DEBUG
-
 namespace calc
 {
 
@@ -37,17 +35,12 @@ public:
             throw std::invalid_argument{ "data is not initialized" };
         }
 
-        if( m_calculator.finished() && m_calculator.error_occured() )
-        {
-            return;
-        }
-
-        if( size )
+        if( !( m_calculator.finished() && m_calculator.error_occured() ) && size )
         {
             std::string new_data{ data, size };
             if( end && new_data.back() != '\n' )
             {
-                new_data += "\n"; // just in case to avoid unnecessary handing
+                new_data += "\n"; // just in case to avoid unnecessary hanging
             }
 
             if( m_calculator.running() )
@@ -56,12 +49,12 @@ public:
             }
             else
             {
-#ifdef DEBUG
+#ifdef SHOW_TIME
                 m_start = std::chrono::high_resolution_clock::now();
 #endif
                 m_result = m_calculator.start( std::move( new_data ) );
             }
-        }
+        };
     }
 
     bool running() const noexcept override{ return m_calculator.running(); }
@@ -78,10 +71,10 @@ public:
             if( m_result.valid() )
             {
                 result = boost::lexical_cast< std::string >( m_result.get() );
-#ifdef DEBUG
+#ifdef SHOW_TIME
                 auto end = std::chrono::high_resolution_clock::now();
                 uint64_t msec = std::chrono::duration_cast< std::chrono::milliseconds >( end - m_start ).count();
-                std::cout << "Calculation done in " << msec << std::endl;
+                std::cout << "Calculation done in " << msec << "" << std::endl;
 #endif
             }
         }
@@ -97,7 +90,7 @@ private:
     calc::async_calculator< type > m_calculator;
     std::future< type > m_result;
 
-#ifdef DEBUG
+#ifdef SHOW_TIME
     std::chrono::high_resolution_clock::time_point m_start;
 #endif
 };

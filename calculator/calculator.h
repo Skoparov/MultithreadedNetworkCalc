@@ -16,10 +16,10 @@ namespace detail
 enum class entry_type{ number, math, opening_bracket, closing_bracket, expr_end };
 
 // subexpr_start used to indicate the start of a subexpression
-// subexpr_with_num indicates that at least one number of the subexpr has been but on stack
+// subexpr_first_num indicates that at least one number of the subexpr has been but on stack
 // the latter used to distinguish between negative values following '(' and minus operators
 // to know when it's possible to unwind the stack
-enum class operator_type{ subexpr_start, subexpr_with_num, end, addition, substraction, multiplication, division, };
+enum class operator_type{ subexpr_start, subexpr_first_num, end, addition, substraction, multiplication, division, };
 
 int get_precedence( const operator_type& type ) noexcept;
 operator_type get_oper_type( char c );
@@ -154,7 +154,7 @@ private:
         m_calculation_finished = false;
     }
 
-    type calc_math( const type& first, const type& second,
+    type calc_math( type& first, type& second,
                     const detail::operator_type& oper_type ) const
     {
         using namespace detail;
@@ -164,14 +164,14 @@ private:
             throw std::logic_error{ "Division by zero" };
         }
 
-        type result{};
+        type result{ std::move( first ) };
 
         switch( oper_type )
         {
-        case operator_type::addition: result = first + second; break;
-        case operator_type::substraction: result =  first - second; break;
-        case operator_type::multiplication: result = first * second; break;
-        case operator_type::division: result = first / second; break;
+        case operator_type::addition: result += second; break;
+        case operator_type::substraction: result -= second; break;
+        case operator_type::multiplication: result *= second; break;
+        case operator_type::division: result /= second; break;
         default: throw std::invalid_argument{ "Unimplemented math operator" }; break;
         }
 
@@ -249,7 +249,7 @@ private:
             if( m_operator_stack.top() == operator_type::subexpr_start )
             {
                 m_operator_stack.pop();
-                m_operator_stack.push( operator_type::subexpr_with_num );
+                m_operator_stack.push( operator_type::subexpr_first_num );
             }
         }
         else
@@ -291,7 +291,7 @@ private:
         using namespace detail;
         assert( !m_operator_stack.empty() );
 
-        bool parse_finished{ false };
+        bool subexpr_parse_finished{ false };
 
         do
         {
@@ -301,13 +301,13 @@ private:
             if( entry == entry_type::opening_bracket )
             {
                 m_operator_stack.push( operator_type::subexpr_start );
-                parse_finished = true;
+                //parse_finished = true;
             }
             else if( entry == entry_type::closing_bracket || entry == entry_type::expr_end )
             {
                 calc_subexpression( operator_type::end );
 
-                if( m_operator_stack.top() != operator_type::subexpr_with_num )
+                if( m_operator_stack.top() != operator_type::subexpr_first_num )
                 {
                     throw std::logic_error{ "Invalid expression: empty subexpression" };
                 }
@@ -323,7 +323,7 @@ private:
                     maybe_swap_top_subexpr_start();
                 }
 
-                parse_finished = true;
+                subexpr_parse_finished = true;
             }
             else if( entry == entry_type::number ||
                      ( m_operator_stack.top() == operator_type::subexpr_start && curr_char == '-' ) )
@@ -340,7 +340,7 @@ private:
 
                 operator_type new_oper{ get_oper_type( curr_char ) };
                 if( m_operator_stack.top() != operator_type::subexpr_start &&
-                    m_operator_stack.top() != operator_type::subexpr_with_num )
+                    m_operator_stack.top() != operator_type::subexpr_first_num )
                 {
                     calc_subexpression( new_oper );
                 }
@@ -350,7 +350,7 @@ private:
 
             ++m_read_pos;
         }
-        while( !parse_finished );
+        while( !subexpr_parse_finished );
     }
 
     type calculate()
@@ -403,8 +403,9 @@ private:
     std::queue< std::string > m_expression_parts;
 
     // not sure why, but simple m_running{ false }
-    // causes gcc 4.8.4 to call copy constructon instead of direct initialization
-    // looks like an msvc bug, = {} fixes it
+    // causes gcc 4.8.4 to call deleted
+    // copy constructon instead of direct initialization
+    // looks like a bug, = {} fixes it
     std::atomic_bool m_running = { false };
     std::atomic_bool m_error_occured = { false };
     std::atomic_bool m_calculation_finished = { false };
