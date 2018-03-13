@@ -136,8 +136,6 @@ BOOST_AUTO_TEST_CASE( calc_handle_test )
 {
     {// full expr
         calc::calc_handle< int64_t > h;
-        BOOST_REQUIRE_THROW( h.on_data( nullptr, 0 ), std::invalid_argument )
-
         std::future< int64_t > f;
 
         std::string expr{ "1 + 2\n" };
@@ -177,8 +175,6 @@ BOOST_AUTO_TEST_CASE( session_test_normal_data_addition )
     BOOST_REQUIRE( !s.write_occured );
 
     std::string test{ "test" };
-    BOOST_REQUIRE_THROW( s.on_data_accessor( nullptr, 0, false ), std::invalid_argument )
-
     BOOST_REQUIRE_NO_THROW( s.on_data_accessor( test.data(), test.length(), false ) )
     BOOST_REQUIRE( s.reads_occured == 2 );
     BOOST_REQUIRE( handle_ptr->_on_data_calls == 1 );
@@ -191,7 +187,6 @@ BOOST_AUTO_TEST_CASE( session_test_normal_data_addition )
     BOOST_REQUIRE( s.write_occured );
     BOOST_REQUIRE( handle_ptr->_result_taken );
 }
-
 
 BOOST_AUTO_TEST_CASE( session_test_on_error )
 {
@@ -215,33 +210,38 @@ BOOST_AUTO_TEST_CASE( server_test )
 {
     using namespace network::detail;
 
+    boost::asio::io_service s;
     mock_handle_factory factory;
-    test_server server{ factory };
+    test_server server{ factory, s, 1 };
 
-    auto& sessions = server.get_sessions();
+    auto& running_sessions = server.get_running_sessions();
+    auto& waiting_session = server.get_waiting_session();
 
     // test start()
     server.start();
-    BOOST_REQUIRE( server._wait_for_connection_called = 1 );
-    BOOST_REQUIRE( sessions.size() == 1 );
+    BOOST_REQUIRE( server._accept_next_connection_called = 1 );
+    BOOST_REQUIRE( running_sessions.size() == 0 );
+    BOOST_REQUIRE( waiting_session != nullptr );
 
     // test handle_connection()
-    auto session = sessions.back();
     boost::system::error_code e{};
-    BOOST_REQUIRE_NO_THROW( server.handle_connection_accessor( session, e ) )
-    BOOST_REQUIRE( server._wait_for_connection_called == 2 );
-    BOOST_REQUIRE( sessions.size() == 2 );
+    BOOST_REQUIRE_NO_THROW( server.handle_connection_accessor( waiting_session, e ) )
+    BOOST_REQUIRE( server._accept_next_connection_called == 2 );
+    BOOST_REQUIRE( waiting_session != nullptr );
+    BOOST_REQUIRE( running_sessions.size() == 1 );
+
+    // test max connections logic
+    BOOST_REQUIRE_NO_THROW( server.handle_connection_accessor( waiting_session, e ) )
+    BOOST_REQUIRE( running_sessions.size() == 1 );
 
     // test session removal
-    auto test_session = std::dynamic_pointer_cast< mock_session >( session );
     std::string test{ "test" };
+    auto test_session = std::dynamic_pointer_cast< mock_session >( running_sessions.back() );
     BOOST_REQUIRE_NO_THROW( test_session->on_data_accessor( test.data(), test.length(), true ) )
     BOOST_REQUIRE( test_session->finished() );
 
-    session = server.get_sessions().back();
-    BOOST_REQUIRE_NO_THROW( server.handle_connection_accessor( session, e ) )
-    BOOST_REQUIRE( server._wait_for_connection_called == 3 );
-    BOOST_REQUIRE( server.get_sessions().size() == 2 );
+    BOOST_REQUIRE_NO_THROW( server.handle_connection_accessor( waiting_session, e ) )
+    BOOST_REQUIRE( server.get_running_sessions().size() == 1 );
 }
 
 bool is_negative_num( const std::string& expr, size_t pos )

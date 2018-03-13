@@ -4,16 +4,16 @@
 
 #include "calc_handle_factory.h"
 
-namespace network
-{
-
 namespace ba = boost::asio;
 namespace bs = boost::system;
+
+namespace network
+{
 
 namespace detail
 {
 
-abstract_calc_session::abstract_calc_session( std::unique_ptr<calc::abstract_calc_handle> handle ) :
+abstract_calc_session::abstract_calc_session( std::unique_ptr< calc::abstract_calc_handle > handle ) :
     m_handle( std::move( handle ) )
 {
     if( !m_handle )
@@ -30,12 +30,6 @@ abstract_calc_session::~abstract_calc_session()
         {
             m_handle->abort();
             m_handle->get_result();
-
-            assert( !m_result_waiter.valid() );
-        }
-        else if( m_result_waiter.valid() )
-        {
-            m_result_waiter.get();
         }
     }
     catch( const std::exception& e )
@@ -46,7 +40,6 @@ abstract_calc_session::~abstract_calc_session()
 
 void abstract_calc_session::start()
 {
-    m_finished = false;
     read_next();
 }
 
@@ -55,44 +48,34 @@ bool abstract_calc_session::finished() const noexcept
     return m_finished;
 }
 
-void abstract_calc_session::on_data( const char* data, uint64_t size, bool end )
+void abstract_calc_session::on_data( const char* data, uint64_t size, bool eof )
 {
-    if( !data )
+    assert( data );
+
+    bool transmit_complete{ false };
+    bool error_happened{ m_handle->error_occured() };
+
+    if( size && !error_happened )
     {
-        throw std::invalid_argument{ "data is not initialized" };
+        transmit_complete = ( eof || data[ size - 1 ] == '\n' );
+        m_handle->on_data( data, size, transmit_complete );
     }
 
-    if( !( m_handle->finished() && m_handle->error_occured() ) )
+    if( transmit_complete || error_happened )
     {
-        m_handle->on_data( data, size, end );
+        write_result();
+    }
 
-        if( end )
-        {
-            if( m_handle->finished() )
-            {
-                // send result right away
-                write_result();
-            }
-            else
-            {
-                // wait for result asynchronously and send it
-                m_result_waiter = std::async( std::launch::async,
-                                              &abstract_calc_session::write_result, this );
-            }
-        }
-        else
-        {
-            read_next();
-        }
+    // Close session if eof has been received, continue listening otherwise
+    if( !eof )
+    {
+        read_next();
     }
     else
     {
-        // don't wait for transfer to finish, just end it here
-        write_result();
+        m_finished = true;
     }
 }
-
-
 
 void abstract_calc_session::write_result()
 {
@@ -108,14 +91,17 @@ void abstract_calc_session::write_result()
         result = e.what();
     }
 
+    result += '\n';
+
     write( result );
-    m_finished = true;
+    m_handle->reset();
 }
 
 tcp_calc_session::tcp_calc_session( ba::io_service& io_service,
-                                    std::unique_ptr<calc::abstract_calc_handle> handler ) :
+                                    std::unique_ptr< calc::abstract_calc_handle > handler ) :
     abstract_calc_session( std::move( handler ) ),
-    m_socket( io_service ){}
+    m_socket( io_service ),
+    m_strand( io_service ){}
 
 ba::ip::tcp::socket& tcp_calc_session::socket() noexcept
 {
@@ -124,12 +110,13 @@ ba::ip::tcp::socket& tcp_calc_session::socket() noexcept
 
 void tcp_calc_session::read_next()
 {
-    ba::async_read( m_socket,
-                    ba::buffer( m_buffer.data(), m_buffer.size() ),
-                    std::bind( &tcp_calc_session::on_socket_data,
-                               shared_from_this(),
-                               std::placeholders::_1,
-                               std::placeholders::_2 ) );
+    auto handler = std::bind( &tcp_calc_session::on_socket_data,
+                              shared_from_this(),
+                              std::placeholders::_1,
+                              std::placeholders::_2 );
+
+    m_socket.async_read_some( ba::buffer( m_buffer.data(), m_buffer.size() ),
+                              m_strand.wrap( handler ) );
 }
 
 void tcp_calc_session::write( const std::string& result )
@@ -137,7 +124,7 @@ void tcp_calc_session::write( const std::string& result )
     ba::write( m_socket, ba::buffer( result.data(), result.length() ) );
 }
 
-void tcp_calc_session::on_socket_data(const bs::error_code& err, uint64_t bytes_transferred )
+void tcp_calc_session::on_socket_data( const bs::error_code& err, uint64_t bytes_transferred )
 {
     if( !err || err.value() == boost::asio::error::eof )
     {
@@ -151,21 +138,26 @@ void tcp_calc_session::on_socket_data(const bs::error_code& err, uint64_t bytes_
 
 }// detail
 
-abstract_calc_server::abstract_calc_server( calc::abstract_calc_handle_factory& factory ) noexcept:
-    m_factory( factory ){}
+//
+
+abstract_calc_server::abstract_calc_server( calc::abstract_calc_handle_factory& factory,
+                                            ba::io_service& io_service,
+                                            uint32_t max_sessions ) noexcept:
+    m_handle_factory( factory ),
+    m_io_service( io_service ),
+    m_max_sessions( max_sessions ){}
 
 void abstract_calc_server::start()
 {
-    // Remove finished sessions
-    m_sessions.erase( std::remove_if( m_sessions.begin(), m_sessions.end(),
-                      []( const std::shared_ptr< detail::abstract_calc_session >& session )
-                      {
-                         return session->finished();
-                      } ), m_sessions.end() );
+    m_waiting_session = create_new_session( m_handle_factory.create() );
+    accept_next_connection();
 
-    m_sessions.emplace_back( create_new_session( m_factory.create() ) );
+    for( size_t i{ 0 }; i < m_max_sessions; ++i )
+    {
+        m_pool.create_thread( [ & ](){ m_io_service.run(); } );
+    }
 
-    wait_for_connection();
+    m_pool.join_all();
 }
 
 void abstract_calc_server::handle_connection( std::shared_ptr< detail::abstract_calc_session >& session,
@@ -173,8 +165,20 @@ void abstract_calc_server::handle_connection( std::shared_ptr< detail::abstract_
 {
     if( !err )
     {
-        session->start();
-        start();
+        m_running_sessions.erase( std::remove_if( m_running_sessions.begin(), m_running_sessions.end(),
+                              []( const std::shared_ptr< detail::abstract_calc_session >& session )
+                              {
+                                 return session->finished();
+                              } ), m_running_sessions.end() );
+
+        if(  m_running_sessions.size() < m_max_sessions )
+        {
+            session->start();
+            m_running_sessions.push_back( session );
+            m_waiting_session = create_new_session( m_handle_factory.create() );
+        }
+
+        accept_next_connection();
     }
     else
     {
@@ -183,11 +187,11 @@ void abstract_calc_server::handle_connection( std::shared_ptr< detail::abstract_
 }
 
 tcp_calc_server::tcp_calc_server( calc::abstract_calc_handle_factory& factory,
-                boost::asio::io_service& io_service,
-                uint16_t port ):
-    abstract_calc_server( factory ),
-    m_io_service( io_service ),
-    m_acceptor( io_service,
+                                  boost::asio::io_service& io_service,
+                                  uint16_t port,
+                                  uint32_t max_connections ):
+    abstract_calc_server( factory, io_service, max_connections ),
+    m_acceptor( m_io_service,
                 ba::ip::tcp::endpoint{ ba::ip::tcp::v4(), port },
                 false ){}
 
@@ -197,6 +201,8 @@ void tcp_calc_server::stop()
     {
         m_acceptor.close();
     }
+
+    m_running_sessions.clear();
 }
 
 bool tcp_calc_server::running() const
@@ -210,17 +216,17 @@ std::shared_ptr< detail::abstract_calc_session > tcp_calc_server::create_new_ses
     return std::make_shared< detail::tcp_calc_session >( m_io_service, std::move( handle ) );
 }
 
-void tcp_calc_server::wait_for_connection()
+void tcp_calc_server::accept_next_connection()
 {
-    assert( !m_sessions.empty() );
-    auto& current_session = m_sessions.back();
-    auto tcp_session = std::dynamic_pointer_cast< detail::tcp_calc_session >( current_session );
+    assert( m_waiting_session );
 
-    m_acceptor.async_accept( tcp_session->socket(),
-                             std::bind( &tcp_calc_server::handle_connection,
-                                        this,
-                                        current_session,
-                                        std::placeholders::_1 ) );
+    auto tcp_session = std::dynamic_pointer_cast< detail::tcp_calc_session >( m_waiting_session );
+    auto handler = std::bind( &tcp_calc_server::handle_connection,
+                              this,
+                              m_waiting_session,
+                              std::placeholders::_1 );
+
+    m_acceptor.async_accept( tcp_session->socket(), handler );
 }
 
 }// network

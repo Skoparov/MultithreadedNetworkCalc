@@ -20,6 +20,7 @@ public:
     bool finished() const noexcept override{ return _finished; }
     bool error_occured() const noexcept override{ return _error_occured; }
     void abort() override{ _running = false; }
+    void reset() override{}
 
     std::string get_result() override
     {
@@ -70,20 +71,20 @@ public:
         return true;
     }
 
+    void accept_next_connection()
+    {
+        ++_accept_next_connection_called;
+    }
+
+    std::list< std::shared_ptr< network::detail::abstract_calc_session > >& get_running_sessions() noexcept
+    {
+        return m_running_sessions;
+    }
+
     std::shared_ptr< network::detail::abstract_calc_session > create_new_session(
-                std::unique_ptr< calc::abstract_calc_handle > handle ) override
+            std::unique_ptr< calc::abstract_calc_handle > handle ) override
     {
         return std::make_shared< mock_session >( std::move( handle ) );
-    }
-
-    void wait_for_connection()
-    {
-        ++_wait_for_connection_called;
-    }
-
-    std::list< std::shared_ptr< network::detail::abstract_calc_session > >& get_sessions() noexcept
-    {
-        return m_sessions;
     }
 
     void handle_connection_accessor( std::shared_ptr< network::detail::abstract_calc_session >& session,
@@ -92,7 +93,12 @@ public:
         handle_connection( session, e );
     }
 
-    uint64_t _wait_for_connection_called{ 0 };
+    std::shared_ptr< network::detail::abstract_calc_session >& get_waiting_session() noexcept
+    {
+        return m_waiting_session;
+    }
+
+    uint64_t _accept_next_connection_called{ 0 };
 };
 
 class mock_handle_factory : public calc::abstract_calc_handle_factory

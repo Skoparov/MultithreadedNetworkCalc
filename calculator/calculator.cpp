@@ -12,7 +12,8 @@ static constexpr char char_mult{ '*' };
 static constexpr char char_div{ '/' };
 static constexpr char char_opening_bracket{ '(' };
 static constexpr char char_closing_bracket{ ')' };
-static constexpr char char_expr_end{ '\n' };
+static constexpr char char_expr_end1{ '\n' };
+static constexpr char char_expr_end2{ '\r' };
 
 int get_precedence( const operator_type& type ) noexcept
 {
@@ -70,7 +71,7 @@ entry_type get_entry_type( char c )
     {
         type = entry_type::number;
     }
-    else if( c == char_expr_end )
+    else if( c == char_expr_end1 || c == char_expr_end2 )
     {
         type = entry_type::expr_end;
     }

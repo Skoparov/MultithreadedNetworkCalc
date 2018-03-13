@@ -9,21 +9,38 @@
 
 static constexpr uint16_t default_port{ 6666 };
 
+void show_help()
+{
+    std::cerr << "Usage: ./calc_server  %port(optional, default = 6666)" << std::endl;
+}
+
 int main( int argc, char *argv[] )
 {
     if( argc > 2 )
     {
-        std::cerr << "Usage: ./calc_server  %port(optional, default = 6666)";
+        show_help();
         return 1;
     }
 
+    uint16_t port{ default_port };
+    if( argc == 2 )
+    {
+        try
+        {
+            port = static_cast< uint16_t >( std::stoul( argv[ 1 ] ) );
+        }
+        catch( ... )
+        {
+            std::cerr << "Invalid port" << std::endl;
+            show_help();
+            return 1;
+        }
+    }
+
+    boost::asio::io_service io_service;
+
     try
     {
-        uint16_t port{ argc == 2?
-                        static_cast< uint16_t >( std::stoul( argv[ 1 ] ) ) :
-                        default_port };
-
-        boost::asio::io_service io_service;
         calc::calc_handle_factory< BigInteger > factory;
         network::tcp_calc_server server{ factory, io_service, port };
 
@@ -34,11 +51,9 @@ int main( int argc, char *argv[] )
             io_service.stop();
         } );
 
+        std::cout << "Server will start on port " << port << std::endl;
+
         server.start();
-
-        std::cout << "Server started on port " << port << std::endl;
-
-        io_service.run();
     }
     catch( const calc::calculation_aborted& )
     {

@@ -4,6 +4,7 @@
 #include <list>
 #include <future>
 
+#include <boost/thread.hpp>
 #include <boost/asio.hpp>
 
 namespace calc
@@ -12,7 +13,7 @@ namespace calc
 class abstract_calc_handle_factory;
 class abstract_calc_handle;
 
-}
+}// calc
 
 namespace network
 {
@@ -30,8 +31,7 @@ public:
     bool finished() const noexcept;
 
 protected:
-    void on_data( const char* data, uint64_t size, bool end );
-
+    void on_data( const char* data, uint64_t size, bool eof );
     virtual void read_next() = 0;
     virtual void write( const std::string& result ) = 0;
 
@@ -39,10 +39,8 @@ private:
     void write_result();
 
 private:
+    std::atomic_bool m_finished{ false };
     std::unique_ptr< calc::abstract_calc_handle > m_handle;
-
-    bool m_finished{ false };
-    std::future< void > m_result_waiter;
 };
 
 class tcp_calc_session : public std::enable_shared_from_this< tcp_calc_session >,
@@ -65,6 +63,7 @@ private:
 private:
     std::array< char, 8192 > m_buffer;
     boost::asio::ip::tcp::socket m_socket;
+    boost::asio::io_service::strand m_strand;
 };
 
 }// detail
@@ -72,7 +71,10 @@ private:
 class abstract_calc_server
 {
 public:
-    abstract_calc_server( calc::abstract_calc_handle_factory& factory) noexcept;
+    abstract_calc_server( calc::abstract_calc_handle_factory& factory,
+                          boost::asio::io_service& io_service,
+                          uint32_t max_sessions = std::thread::hardware_concurrency() ) noexcept;
+
     virtual ~abstract_calc_server() = default;
 
     void start();
@@ -81,37 +83,40 @@ public:
 
 protected:
     virtual std::shared_ptr< detail::abstract_calc_session > create_new_session(
-                std::unique_ptr< calc::abstract_calc_handle > handle )  = 0;
+                    std::unique_ptr< calc::abstract_calc_handle > handle )  = 0;
 
-    virtual void wait_for_connection() = 0;
-
-public:
+    virtual void accept_next_connection() = 0;
     void handle_connection( std::shared_ptr< detail::abstract_calc_session >& session,
                             const boost::system::error_code& e );
 
 protected:
-    calc::abstract_calc_handle_factory& m_factory;
-    std::list< std::shared_ptr< detail::abstract_calc_session > > m_sessions;
+    boost::thread_group m_pool;
+    boost::asio::io_service& m_io_service;
+    calc::abstract_calc_handle_factory& m_handle_factory;
+
+    uint32_t m_max_sessions{ 0 };
+    std::shared_ptr< detail::abstract_calc_session > m_waiting_session;
+    std::list< std::shared_ptr< detail::abstract_calc_session > > m_running_sessions;
 };
 
 class tcp_calc_server : public abstract_calc_server
 {
 public:
     tcp_calc_server( calc::abstract_calc_handle_factory& factory,
-            boost::asio::io_service& io_service,
-            uint16_t port );
+                     boost::asio::io_service& io_service,
+                     uint16_t port,
+                     uint32_t max_sessions = std::thread::hardware_concurrency() );
 
     void stop() override;
     bool running() const override;
 
 protected:
     std::shared_ptr< detail::abstract_calc_session > create_new_session(
-            std::unique_ptr< calc::abstract_calc_handle > handle ) override;
+                std::unique_ptr< calc::abstract_calc_handle > handle ) override;
 
-    void wait_for_connection() override;
+    void accept_next_connection() override;
 
 private:
-    boost::asio::io_service& m_io_service;
     boost::asio::ip::tcp::acceptor m_acceptor;
 };
 

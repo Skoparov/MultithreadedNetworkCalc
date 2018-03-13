@@ -5,7 +5,7 @@ project( ${PROJECT} )
 add_definitions( -DSHOW_TIME )
 
 set( CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-std=c++11 -pthread" )
-find_package( Boost 1.55.0 REQUIRED COMPONENTS system )
+find_package( Boost 1.55.0 REQUIRED COMPONENTS system thread )
 
 add_executable( ${PROJECT}
                 main.cpp
@@ -26,4 +26,4 @@ add_executable( ${PROJECT}
 
 include_directories( ${Boost_INCLUDE_DIRS} )
 link_directories( ${Boost_LIBRARY_DIRS} )
-target_link_libraries( ${PROJECT} ${Boost_SYSTEM_LIBRARY} )
+target_link_libraries( ${PROJECT} ${Boost_SYSTEM_LIBRARY} ${Boost_THREAD_LIBRARY} )

@@ -20,6 +20,7 @@ public:
     virtual bool running() const noexcept = 0;
     virtual bool finished() const noexcept = 0;
     virtual bool error_occured() const noexcept = 0;
+    virtual void reset() = 0;
     virtual void abort() = 0;
     virtual std::string get_result() = 0;
 };
@@ -30,37 +31,32 @@ class calc_handle : public abstract_calc_handle
 public:
     void on_data( const char* data, uint64_t size, bool end = false ) override
     {
-        if( !data )
+        assert( data );
+
+        std::string new_data{ data, size };
+        if( end && new_data.back() != '\n' )
         {
-            throw std::invalid_argument{ "data is not initialized" };
+            new_data += "\n"; // just in case to avoid unnecessary hanging
         }
 
-        if( !( m_calculator.finished() && m_calculator.error_occured() ) && size )
+        if( m_calculator.running() )
         {
-            std::string new_data{ data, size };
-            if( end && new_data.back() != '\n' )
-            {
-                new_data += "\n"; // just in case to avoid unnecessary hanging
-            }
-
-            if( m_calculator.running() )
-            {
-                m_calculator.add_expr_part( std::move( new_data ) );
-            }
-            else
-            {
+            m_calculator.add_expr_part( std::move( new_data ) );
+        }
+        else
+        {
 #ifdef SHOW_TIME
-                m_start = std::chrono::high_resolution_clock::now();
+            m_start = std::chrono::high_resolution_clock::now();
 #endif
-                m_result = m_calculator.start( std::move( new_data ) );
-            }
-        };
+            m_result = m_calculator.start( std::move( new_data ) );
+        }
     }
 
     bool running() const noexcept override{ return m_calculator.running(); }
     bool finished() const noexcept override{ return m_calculator.finished(); }
     bool error_occured() const noexcept override{ return m_calculator.error_occured(); }
     void abort() override{ return m_calculator.abort(); }
+    void reset() override{ return m_calculator.reset(); }
 
     std::string get_result() override
     {

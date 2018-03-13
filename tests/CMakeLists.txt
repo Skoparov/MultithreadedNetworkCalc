@@ -6,7 +6,7 @@ PROJECT(${TEST_PROJECT})
 add_definitions("-std=c++11")
 
 find_library(PTHREAD pthread)
-find_package(Boost COMPONENTS unit_test_framework system REQUIRED)
+find_package(Boost COMPONENTS unit_test_framework system thread REQUIRED)
 
 set( SOURCE_DIR ../ )
 file( GLOB SOURCES "tests.cpp"
