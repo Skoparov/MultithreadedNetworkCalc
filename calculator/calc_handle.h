@@ -1,9 +1,11 @@
 #ifndef CALC_HANDLE_H
 #define CALC_HANDLE_H
 
-#include <iostream>
-
 #include "calculator.h"
+
+#ifdef SHOW_TIME
+    #include "logger.h"
+#endif
 
 #include <boost/lexical_cast.hpp>
 
@@ -70,9 +72,13 @@ public:
 #ifdef SHOW_TIME
                 auto end = std::chrono::high_resolution_clock::now();
                 uint64_t msec = std::chrono::duration_cast< std::chrono::milliseconds >( end - m_start ).count();
-                std::cout << "Calculation done in " << msec << "" << std::endl;
+                logger::log( std::string{ "Calculation done in " } + std::to_string( msec ) );
 #endif
             }
+        }
+        catch( const calc::calculation_aborted& )
+        {
+            result = "Calculation aborted";
         }
         catch( const std::exception& e )
         {

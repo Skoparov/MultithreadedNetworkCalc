@@ -186,6 +186,7 @@ BigInteger::CmpRes BigInteger::compareTo(const BigInteger &x) const {
 
 void BigInteger::add(const BigInteger &a, const BigInteger &b) {
     DTRT_ALIASED(this == &a || this == &b, add(a, b));
+
     // If one argument is zero, copy the other.
     if (a.sign == zero)
         operator =(b);

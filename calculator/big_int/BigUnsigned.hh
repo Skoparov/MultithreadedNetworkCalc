@@ -40,7 +40,7 @@ public:
 
     // Copy constructor
     BigUnsigned(const BigUnsigned &x) : NumberlikeArray<Blk>(x) {}
-    BigUnsigned( BigUnsigned&& x) : NumberlikeArray<Blk>( std::move( x ) ) {}
+    BigUnsigned( BigUnsigned&& x) = default;
 
     // Assignment operator
     BigUnsigned& operator=(const BigUnsigned &x) {
@@ -48,10 +48,7 @@ public:
         return *this;
     }
 
-    BigUnsigned& operator=( BigUnsigned&& x ) {
-        NumberlikeArray<Blk>::operator =( std::move( x ) );
-        return *this;
-    }
+    BigUnsigned& operator=( BigUnsigned&& x ) = default;
 
     // Constructor that copies from a given array of blocks.
     BigUnsigned(const Blk *b, Index blen) : NumberlikeArray<Blk>(b, blen) {

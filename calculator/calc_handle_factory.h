@@ -1,8 +1,9 @@
 #ifndef CALC_HANDLE_FACTORY_H
 #define CALC_HANDLE_FACTORY_H
 
-#include "calc_handle.h"
 #include <unordered_map>
+
+#include "calc_handle.h"
 
 namespace std
 {

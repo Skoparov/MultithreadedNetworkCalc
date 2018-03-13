@@ -15,7 +15,8 @@ BigUnsigned stringToBigUnsigned(const std::string &s) {
     return BigUnsigned(BigUnsignedInABase(s, 10));
 }
 
-BigInteger stringToBigInteger(const std::string &s) {
+BigInteger stringToBigInteger(const std::string &s)
+{
     // Recognize a sign followed by a BigUnsigned.
     return (s[0] == '-') ? BigInteger(stringToBigUnsigned(s.substr(1, s.length() - 1)), BigInteger::negative)
         : (s[0] == '+') ? BigInteger(stringToBigUnsigned(s.substr(1, s.length() - 1)))
@@ -53,7 +54,7 @@ std::istream &operator>>(std::istream &stream, BigInteger &bi)
 {
     std::string s;
     stream >> s;
-    bi = stringToBigInteger( s );
+    bi = std::move( stringToBigInteger( s ) );
 
     return stream;
 }

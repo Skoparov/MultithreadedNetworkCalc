@@ -128,20 +128,9 @@ private:
 
     void clean_parse_data()
     {
-        while( !m_operator_stack.empty() )
-        {
-            m_operator_stack.pop();
-        }
-
-        while( !m_numbers.empty() )
-        {
-            m_numbers.pop();
-        }
-
-        while( !m_expression_parts.empty() )
-        {
-            m_expression_parts.pop();
-        }
+        m_operator_stack = {};
+        m_numbers = {};
+        m_expression_parts = {};
     }
 
     void clean_all()
@@ -180,6 +169,11 @@ private:
 
     char get_character()
     {
+        if( !m_running )
+        {
+            throw calculation_aborted{};
+        }
+
         // remove ws and find first valid character or wait for more data
         std::unique_lock< std::mutex > l { m_mutex };
 
@@ -272,7 +266,7 @@ private:
                 throw std::logic_error{ "Invalid expression: not enough operator arguments provided" };
             }
 
-            operator_type& top_oper = m_operator_stack.top();
+            operator_type top_oper = m_operator_stack.top();
             m_operator_stack.pop();
 
             type value{ std::move( m_numbers.top() ) };
@@ -391,6 +385,8 @@ private:
             // propagate exception to future
             throw;
         }
+
+        clean_parse_data();
 
         return result;
     }

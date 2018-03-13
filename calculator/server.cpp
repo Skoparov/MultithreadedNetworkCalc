@@ -1,7 +1,6 @@
 #include "server.h"
 
-#include <iostream>
-
+#include "logger.h"
 #include "calc_handle_factory.h"
 
 namespace ba = boost::asio;
@@ -34,13 +33,19 @@ abstract_calc_session::~abstract_calc_session()
     }
     catch( const std::exception& e )
     {
-        std::cerr << e.what() << std::endl;
+        logger::log( e.what(), logger::to::cerr );
     }
 }
 
 void abstract_calc_session::start()
 {
+    m_handle->reset();
     read_next();
+}
+
+void abstract_calc_session::stop() noexcept
+{
+    m_handle->abort();
 }
 
 bool abstract_calc_session::finished() const noexcept
@@ -53,20 +58,20 @@ void abstract_calc_session::on_data( const char* data, uint64_t size, bool eof )
     assert( data );
 
     bool transmit_complete{ false };
-    bool error_happened{ m_handle->error_occured() };
+    bool error_occured{ m_handle->error_occured() };
 
-    if( size && !error_happened )
+    if( size && !error_occured )
     {
         transmit_complete = ( eof || data[ size - 1 ] == '\n' );
         m_handle->on_data( data, size, transmit_complete );
     }
 
-    if( transmit_complete || error_happened )
+    if( transmit_complete || error_occured )
     {
         write_result();
     }
 
-    // Close session if eof has been received, continue listening otherwise
+    // Close session if client has closed it, continue reading otherwise
     if( !eof )
     {
         read_next();
@@ -79,22 +84,8 @@ void abstract_calc_session::on_data( const char* data, uint64_t size, bool eof )
 
 void abstract_calc_session::write_result()
 {
-    std::string result;
-
-    try
-    {
-        result = m_handle->get_result();
-    }
-    catch( const std::exception& e )
-    {
-        // report error to client
-        result = e.what();
-    }
-
-    result += '\n';
-
+    std::string result{ m_handle->get_result() + '\n' };
     write( result );
-    m_handle->reset();
 }
 
 tcp_calc_session::tcp_calc_session( ba::io_service& io_service,
@@ -121,7 +112,10 @@ void tcp_calc_session::read_next()
 
 void tcp_calc_session::write( const std::string& result )
 {
-    ba::write( m_socket, ba::buffer( result.data(), result.length() ) );
+    auto handler = std::bind( &tcp_calc_session::start,
+                              shared_from_this() );
+
+    m_socket.async_write_some( ba::buffer( result.data(), result.length() ), m_strand.wrap( handler ) );
 }
 
 void tcp_calc_session::on_socket_data( const bs::error_code& err, uint64_t bytes_transferred )
@@ -132,13 +126,11 @@ void tcp_calc_session::on_socket_data( const bs::error_code& err, uint64_t bytes
     }
     else
     {
-        std::cerr << err.message() << std::endl;
+        logger::log( err.message(), logger::to::cerr );
     }
 }
 
 }// detail
-
-//
 
 abstract_calc_server::abstract_calc_server( calc::abstract_calc_handle_factory& factory,
                                             ba::io_service& io_service,
@@ -175,14 +167,18 @@ void abstract_calc_server::handle_connection( std::shared_ptr< detail::abstract_
         {
             session->start();
             m_running_sessions.push_back( session );
-            m_waiting_session = create_new_session( m_handle_factory.create() );
+        }
+        else
+        {
+            logger::log( "Connection refused: limit reached", logger::to::cerr );
         }
 
+        m_waiting_session = create_new_session( m_handle_factory.create() );
         accept_next_connection();
     }
     else
     {
-        std::cerr << err.message() << std::endl;
+        logger::log( err.message(), logger::to::cerr );
     }
 }
 
@@ -192,21 +188,29 @@ tcp_calc_server::tcp_calc_server( calc::abstract_calc_handle_factory& factory,
                                   uint32_t max_connections ):
     abstract_calc_server( factory, io_service, max_connections ),
     m_acceptor( m_io_service,
-                ba::ip::tcp::endpoint{ ba::ip::tcp::v4(), port },
-                false ){}
+                ba::ip::tcp::endpoint{ ba::ip::tcp::v4(), port }, false ){}
 
 void tcp_calc_server::stop()
 {
+    std::lock_guard< std::mutex > l{ m_mutex };
+
+    for( auto& session : m_running_sessions )
+    {
+        session->stop();
+    }
+
+    m_running_sessions.clear();
+    m_waiting_session.reset();
+
     if( m_acceptor.is_open() )
     {
         m_acceptor.close();
     }
-
-    m_running_sessions.clear();
 }
 
 bool tcp_calc_server::running() const
 {
+    std::lock_guard< std::mutex > l{ m_mutex };
     return m_acceptor.is_open();
 }
 
@@ -218,14 +222,15 @@ std::shared_ptr< detail::abstract_calc_session > tcp_calc_server::create_new_ses
 
 void tcp_calc_server::accept_next_connection()
 {
+    std::lock_guard< std::mutex > l{ m_mutex };
     assert( m_waiting_session );
 
-    auto tcp_session = std::dynamic_pointer_cast< detail::tcp_calc_session >( m_waiting_session );
     auto handler = std::bind( &tcp_calc_server::handle_connection,
                               this,
                               m_waiting_session,
                               std::placeholders::_1 );
 
+    auto tcp_session = std::dynamic_pointer_cast< detail::tcp_calc_session >( m_waiting_session );
     m_acceptor.async_accept( tcp_session->socket(), handler );
 }
 

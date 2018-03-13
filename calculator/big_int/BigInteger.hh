@@ -101,7 +101,7 @@ public:
     bool operator ==(const BigInteger &x) const {
         return sign == x.sign && mag == x.mag;
     }
-    bool operator !=(const BigInteger &x) const { return !operator ==(x); };
+    bool operator !=(const BigInteger &x) const { return !operator ==(x); }
     bool operator < (const BigInteger &x) const { return compareTo(x) == less   ; }
     bool operator <=(const BigInteger &x) const { return compareTo(x) != greater; }
     bool operator >=(const BigInteger &x) const { return compareTo(x) != less   ; }

@@ -27,11 +27,11 @@ public:
     static const unsigned int N;
 
     // The current allocated capacity of this NumberlikeArray (in blocks)
-    Index cap;
+    Index cap{ 0 };
     // The actual length of the value stored in this NumberlikeArray (in blocks)
-    Index len;
+    Index len{ 0 };
     // Heap-allocated array of the blocks (can be NULL if len == 0)
-    Blk *blk;
+    Blk *blk{ nullptr };
 
     // Constructs a ``zero'' NumberlikeArray with the given capacity.
     NumberlikeArray(Index c) : cap(c), len(0) {
@@ -169,6 +169,8 @@ NumberlikeArray<Blk>& NumberlikeArray<Blk>::operator=( NumberlikeArray<Blk>&&x )
 {
     if (this == &x)
         return *this;
+
+    delete[] blk;
 
     len = x.len;
     cap = x.cap;

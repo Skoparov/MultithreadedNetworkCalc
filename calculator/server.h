@@ -2,10 +2,10 @@
 #define SERVER_H
 
 #include <list>
-#include <future>
+#include <mutex>
 
-#include <boost/thread.hpp>
 #include <boost/asio.hpp>
+#include <boost/thread.hpp>
 
 namespace calc
 {
@@ -28,6 +28,7 @@ public:
     virtual ~abstract_calc_session();
 
     virtual void start();
+    void stop() noexcept;
     bool finished() const noexcept;
 
 protected:
@@ -73,7 +74,7 @@ class abstract_calc_server
 public:
     abstract_calc_server( calc::abstract_calc_handle_factory& factory,
                           boost::asio::io_service& io_service,
-                          uint32_t max_sessions = std::thread::hardware_concurrency() ) noexcept;
+                          uint32_t max_sessions ) noexcept;
 
     virtual ~abstract_calc_server() = default;
 
@@ -105,7 +106,7 @@ public:
     tcp_calc_server( calc::abstract_calc_handle_factory& factory,
                      boost::asio::io_service& io_service,
                      uint16_t port,
-                     uint32_t max_sessions = std::thread::hardware_concurrency() );
+                     uint32_t max_sessions = boost::thread::hardware_concurrency() );
 
     void stop() override;
     bool running() const override;
@@ -118,6 +119,7 @@ protected:
 
 private:
     boost::asio::ip::tcp::acceptor m_acceptor;
+    mutable std::mutex m_mutex;
 };
 
 }// network
