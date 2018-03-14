@@ -144,12 +144,27 @@ void abstract_calc_server::start()
     m_waiting_session = create_new_session( m_handle_factory.create() );
     accept_next_connection();
 
-    for( size_t i{ 0 }; i < m_max_sessions; ++i )
+    std::exception_ptr e_ptr;
+
+    try
     {
-        m_pool.create_thread( [ & ](){ m_io_service.run(); } );
+        for( size_t i{ 0 }; i < m_max_sessions; ++i )
+        {
+            m_pool.create_thread( [ & ](){ m_io_service.run(); } );
+        }
+    }
+    catch( ... )
+    {
+        m_io_service.stop();
+        e_ptr = std::current_exception();
     }
 
     m_pool.join_all();
+
+    if( e_ptr )
+    {
+        std::rethrow_exception( e_ptr );
+    }
 }
 
 void abstract_calc_server::handle_connection( std::shared_ptr< detail::abstract_calc_session >& session,
